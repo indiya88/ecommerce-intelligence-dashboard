@@ -64,4 +64,4 @@ This is a hands-on data analytics portfolio project demonstrating data preparati
 
 ## Live dashboard
 
-A Streamlit Community Cloud link can be added here after deployment.
+https://ecommerce-intelligence-dashboard-edrnwcrmk9f45w4u8sbn4e.streamlit.app/
