@@ -101,6 +101,27 @@ div.stButton > button:hover {
     background:linear-gradient(125deg,#54347F,#352C65)!important;color:#FFF!important;
     border-color:#A855F7!important;box-shadow:0 0 18px rgba(168,85,247,.25)!important;
 }
+/* Full-size KPI cards: the value is the visual focus, not the button label. */
+.kpi-face {
+    min-height: 112px; padding: 15px 16px 7px;
+    border: 1px solid rgba(168,85,247,.38);
+    border-bottom: 0; border-radius: 13px 13px 0 0;
+    background: linear-gradient(140deg,rgba(52,36,83,.72),rgba(24,23,43,.93));
+    text-align: left;
+}
+.kpi-label {font-size:.76rem;font-weight:750;letter-spacing:.07em;color:#C8BCE7;}
+.kpi-number {font-size:clamp(1.85rem,2.7vw,2.85rem);font-weight:850;
+    line-height:1.22;letter-spacing:-.04em;color:#FFFFFF;margin:7px 0 4px;}
+.kpi-number.problem {color:#FDA4AF;}
+.kpi-detail {font-size:.8rem;color:#C5BFD4;}
+.st-key-kpi_all button, .st-key-kpi_value button,
+.st-key-kpi_fulfilled button, .st-key-kpi_problems button {
+    width:100%;min-height:34px!important;padding:5px 12px!important;
+    font-size:.78rem!important;border-radius:0 0 13px 13px!important;
+    border-top:1px solid rgba(168,85,247,.17)!important;
+    margin-top:-1rem!important;
+}
+.st-key-open_insights button {border-color:rgba(168,85,247,.65)!important;}
 /* Streamlit's data grid needs a dark application theme as well (config.toml). */
 [data-testid="stDataFrame"] {
     background:rgba(18,20,30,.78)!important;
@@ -130,6 +151,32 @@ div.stButton > button:hover {
 .kpi-detail-table tr:last-child td {border-bottom:0}
 .kpi-detail-table th:last-child,.kpi-detail-table td:last-child {border-right:0}
 .kpi-detail-table tbody tr:hover {background:rgba(168,85,247,.08)}
+
+/* Executive command centre: charts in two tight rows, not a long report. */
+.overview-headline {font-size:.9rem;color:#D8D1E9;margin:-3px 0 8px}
+.overview-section-title {font-size:.8rem;font-weight:800;letter-spacing:.11em;
+    color:#C9B7F2;margin:9px 0 6px}
+.overview-section-title span {font-size:.72rem;letter-spacing:0;font-weight:450;color:#A8A7BC}
+.compact-chart-title {font-size:.91rem;font-weight:750;color:#F3F4F6;margin:0 0 1px}
+.compact-chart-note {font-size:.73rem;color:#B7B2C9;min-height:1.1rem;margin:-5px 0 5px}
+[data-testid="stVerticalBlockBorderWrapper"]:has(.compact-chart-title) > div[data-testid="stVerticalBlock"] {
+    padding:10px 11px 8px!important;gap:.25rem!important;
+}
+[data-testid="stVerticalBlockBorderWrapper"]:has(.compact-chart-title) [data-testid="stPlotlyChart"] {
+    box-shadow:none!important;border:0!important;background:transparent!important;
+}
+.st-key-detail_products button,.st-key-detail_monthly button,.st-key-detail_status button,
+.st-key-detail_marketing button,.st-key-detail_cart button,.st-key-detail_coupons button,
+.st-key-quick_insight_products button,.st-key-quick_insight_monthly button,
+.st-key-quick_insight_status button,.st-key-quick_insight_marketing button,
+.st-key-quick_insight_cart button,.st-key-quick_insight_coupons button {
+    font-size:.75rem!important;min-height:30px!important;padding:4px 7px!important;
+}
+@media (min-width: 1100px) {
+    .block-container {max-width:1780px;padding-top:.4rem!important}
+    .kpi-face {min-height:99px;padding:10px 13px 6px}
+    .kpi-number {font-size:clamp(1.9rem,2.5vw,2.7rem);margin:3px 0 2px}
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -185,16 +232,16 @@ def finish_chart(fig, height=245, right_margin=25):
     # Match the chart canvas to our cards, keeping each chart's axis titles.
     fig.update_layout(
         height=height, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="Segoe UI, Arial, sans-serif", color=TEXT, size=12),
+        font=dict(family="Segoe UI Semibold, Segoe UI, Arial, sans-serif", color=TEXT, size=12),
         margin=dict(l=22, r=right_margin, t=26, b=42),
         hoverlabel=dict(bgcolor="#221A36", bordercolor=ACCENT, font_color=TEXT),
         bargap=0.62, bargroupgap=0.18,
-        legend=dict(font=dict(color=TEXT, size=11), bgcolor="rgba(0,0,0,0)"),
+        legend=dict(font=dict(family="Segoe UI Semibold, Segoe UI, Arial, sans-serif", color="#DCD5F0", size=12), bgcolor="rgba(0,0,0,0)"),
     )
     fig.update_xaxes(showgrid=False, zeroline=False, linecolor=BORDER,
-                     tickfont=dict(color=MUTED), title_font=dict(color=MUTED))
+                     tickfont=dict(family="Segoe UI Semibold, Segoe UI, Arial, sans-serif", color="#D6CCE9", size=12), title_font=dict(color="#D6CCE9", size=12))
     fig.update_yaxes(gridcolor="rgba(168,85,247,0.11)", griddash="dot", zeroline=False,
-                     tickfont=dict(color=MUTED), title_font=dict(color=MUTED))
+                     tickfont=dict(family="Segoe UI Semibold, Segoe UI, Arial, sans-serif", color="#D6CCE9", size=12), title_font=dict(color="#D6CCE9", size=12))
     return fig
 
 
@@ -217,7 +264,7 @@ def bar_chart(table, category, metric, *, percent=False, horizontal=False, heigh
 # Show the dashboard title and calculate the main order numbers.
 st.caption("BUSINESS INTELLIGENCE  /  PERFORMANCE OVERVIEW")
 st.title("E-Commerce Intelligence")
-st.markdown(f"<p style='color:{MUTED};margin-top:-12px'>Find what sells, what gets returned, and which channels bring better orders.</p>", unsafe_allow_html=True)
+st.markdown(f"<p style='color:{MUTED};margin-top:-12px'>Explore product performance, order outcomes, and shopping patterns with interactive analysis.</p>", unsafe_allow_html=True)
 if filtered.empty:
     st.warning("No orders match your filters. Choose more years, products or sources.")
     st.stop()
@@ -251,7 +298,7 @@ def show_executive_insights():
     st.download_button("Download problem orders (CSV)", problem_records.to_csv(index=False),
         "cancelled_returned_orders.csv", "text/csv", key="download_problem_orders")
 
-if st.button("💡 Executive Insights · " + str(len(build_insights(filtered))) + " findings", key="open_insights", type="secondary"):
+if st.button("💡 Explore Executive Insights · " + str(len(build_insights(filtered))) + " findings ↗", key="open_insights", type="primary"):
     show_executive_insights()
 
 # Explain each chart in plain English, using the current filters.
@@ -389,162 +436,196 @@ def show_kpi_table(data, money_columns=(), percent_columns=()):
     html_table = display.to_html(index=False, escape=True, classes="kpi-detail-table", border=0)
     st.markdown(html_table, unsafe_allow_html=True)
 
-# Keep the first screen focused on the most important business questions.
-# Detailed charts live in tabs so the dashboard stays readable without endless scrolling.
-overview_tab, marketing_tab, cart_tab, coupon_tab, orders_tab = st.tabs(
-    ["📊 Overview", "📣 Marketing", "🛒 Shopping Carts", "🏷️ Coupons", "📋 Order Records"]
+# A compact executive overview: six charts in a 3-by-2 grid, with detail on demand.
+# All calculations use the active sidebar filters; detailed views remain interactive.
+overview_tab, orders_tab = st.tabs(["📊 Dashboard", "📋 Order Records"])
+
+product = filtered.groupby("product_name").agg(
+    orders=("order_id", "size"), problem_orders=("problem_order", "sum"),
+    cancelled=("order_status", lambda x: (x == "Cancelled").sum()),
+    returned=("order_status", lambda x: (x == "Returned").sum()),
+).reset_index()
+product["problem_rate"] = 100 * product["problem_orders"] / product["orders"]
+product = product.sort_values("problem_rate", ascending=False)
+monthly = filtered.dropna(subset=["month_start"]).groupby("month_start").size().reset_index(name="orders")
+statuses = filtered["order_status"].value_counts().rename_axis("status").reset_index(name="orders")
+channel = filtered.groupby("referralsource").agg(
+    orders=("order_id", "size"), problem_orders=("problem_order", "sum"),
+    shipped_delivered=("shipped_delivered", "sum"),
+).reset_index()
+channel["problem_rate"] = 100 * channel["problem_orders"] / channel["orders"]
+channel = channel.sort_values("orders", ascending=False)
+cart = filtered.dropna(subset=["itemsincart"]).groupby("itemsincart").agg(
+    orders=("order_id", "size"), problem_orders=("problem_order", "sum"),
+).reset_index()
+cart["problem_rate"] = 100 * cart["problem_orders"] / cart["orders"]
+coupon_data = filtered.copy()
+coupon_data["coupon_group"] = coupon_data["couponcode"].fillna("").astype(str).str.strip().replace("", "No coupon")
+coupons = coupon_data.groupby("coupon_group", as_index=False).agg(
+    orders=("order_id", "size"), problem_orders=("problem_order", "sum"),
+    average_order_value=("totalprice", "mean"),
 )
+coupons["problem_rate"] = 100 * coupons["problem_orders"] / coupons["orders"]
+coupons = coupons.sort_values("orders", ascending=False)
+
+
+def monthly_figure(height=205):
+    fig = go.Figure(go.Scatter(
+        x=monthly["month_start"], y=monthly["orders"], mode="lines+markers",
+        fill="tozeroy", fillcolor="rgba(168,85,247,0.14)",
+        line=dict(color="#B87AFF", width=3, shape="spline", smoothing=.55),
+        marker=dict(color="#EC4899", size=5),
+        hovertemplate="%{x|%b %Y}: %{y} orders<extra></extra>", name="Orders",
+    ))
+    fig.update_layout(xaxis_title="", yaxis_title="Orders")
+    return finish_chart(fig, height)
+
+
+def status_figure(height=205):
+    fig = go.Figure(go.Pie(
+        labels=statuses["status"], values=statuses["orders"], hole=.60,
+        marker=dict(colors=[STATUS_COLORS.get(v, BLUE) for v in statuses["status"]],
+                    line=dict(color=PANEL, width=2)),
+        textinfo="percent", textposition="inside",
+        hovertemplate="<b>%{label}</b><br>Orders: %{value:,}<br>Share: %{percent}<extra></extra>",
+    ))
+    fig.update_layout(showlegend=True, legend=dict(orientation="v", x=1.02, y=.5,
+        xanchor="left", yanchor="middle", font=dict(family="Segoe UI Semibold, Segoe UI, Arial, sans-serif", color="#DCD5F0", size=12)),
+        margin=dict(l=4, r=95, t=10, b=10))
+    return finish_chart(fig, height, 95)
+
+
+@st.dialog("Explore chart details", width="large")
+def show_chart_details(section):
+    if section == "products":
+        st.subheader("Product cancellation & return rates")
+        st.plotly_chart(bar_chart(product, "product_name", "problem_rate", percent=True, horizontal=True, height=320), use_container_width=True)
+        show_kpi_table(product, percent_columns=("problem_rate",))
+        st.caption("Rates account for differences in product order volume.")
+    elif section == "monthly":
+        st.subheader("Monthly order activity")
+        st.plotly_chart(monthly_figure(350), use_container_width=True)
+        show_kpi_table(monthly)
+    elif section == "status":
+        st.subheader("Order outcomes")
+        st.plotly_chart(status_figure(330), use_container_width=True)
+        show_kpi_table(statuses)
+        st.caption("Shipped means dispatched, not necessarily delivered.")
+    elif section == "marketing":
+        st.subheader("Referral sources: volume and quality")
+        l, r = st.columns(2)
+        with l:
+            st.plotly_chart(bar_chart(channel, "referralsource", "orders", height=300), use_container_width=True)
+        with r:
+            st.plotly_chart(bar_chart(channel, "referralsource", "problem_rate", percent=True, height=300), use_container_width=True)
+        show_kpi_table(channel, percent_columns=("problem_rate",))
+        st.caption("These associations do not establish why a referral source has more returns.")
+    elif section == "cart":
+        st.subheader("Cart size and order outcomes")
+        l, r = st.columns(2)
+        with l:
+            f = bar_chart(cart, "itemsincart", "orders", height=300)
+            f.update_xaxes(title_text="Items in Cart", type="category")
+            st.plotly_chart(f, use_container_width=True)
+        with r:
+            f = bar_chart(cart, "itemsincart", "problem_rate", percent=True, height=300)
+            f.update_xaxes(title_text="Items in Cart", type="category")
+            st.plotly_chart(f, use_container_width=True)
+        show_kpi_table(cart, percent_columns=("problem_rate",))
+        st.caption("This dataset cannot measure cart abandonment; it records completed order rows, not cart events.")
+    elif section == "coupons":
+        st.subheader("Coupon groups: volume and outcomes")
+        l, r = st.columns(2)
+        with l:
+            st.plotly_chart(bar_chart(coupons, "coupon_group", "orders", height=300), use_container_width=True)
+        with r:
+            st.plotly_chart(bar_chart(coupons, "coupon_group", "problem_rate", percent=True, height=300), use_container_width=True)
+        show_kpi_table(coupons, money_columns=("average_order_value",), percent_columns=("problem_rate",))
+        st.caption("Coupon usage does not prove a promotion caused an order or return.")
+
+
+@st.dialog("KPI breakdown", width="large")
+def show_kpi_breakdown(view):
+    if view == "fulfilled":
+        st.subheader("Shipped and delivered by product")
+        focus = filtered[filtered["shipped_delivered"]]
+        summary = focus.groupby(["product_name", "order_status"]).size().unstack(fill_value=0)
+        show_kpi_table(summary)
+        st.caption("Shipped orders are not necessarily delivered.")
+    elif view == "problems":
+        show_chart_details_content_products()
+    elif view == "value":
+        st.subheader("Order value by status")
+        t = filtered.groupby("order_status", as_index=False).agg(orders=("order_id", "size"), order_value=("totalprice", "sum"))
+        show_kpi_table(t, money_columns=("order_value",))
+        st.caption("Order value includes pending, cancelled and returned records; it is not verified revenue.")
+    else:
+        st.subheader("Orders and value by product")
+        t = filtered.groupby("product_name", as_index=False).agg(orders=("order_id", "size"), order_value=("totalprice", "sum"))
+        show_kpi_table(t.sort_values("orders", ascending=False), money_columns=("order_value",))
+
+
+def show_chart_details_content_products():
+    st.subheader("Problem orders by product")
+    st.plotly_chart(bar_chart(product, "product_name", "problem_rate", percent=True, horizontal=True, height=315), use_container_width=True)
+    show_kpi_table(product, percent_columns=("problem_rate",))
+
+
+def compact_chart(title, section, figure, note):
+    # Plotly tooltips remain interactive. The buttons reveal deeper charts or insights.
+    with st.container(border=True):
+        st.markdown(f'<div class="compact-chart-title">{title}</div>', unsafe_allow_html=True)
+        st.plotly_chart(figure, use_container_width=True, config={"displayModeBar": False}, key=f"overview_plot_{section}")
+        st.markdown(f'<div class="compact-chart-note">{note}</div>', unsafe_allow_html=True)
+        detail_col, insight_col = st.columns(2, gap="small")
+        with detail_col:
+            if st.button("↗ Details", key=f"detail_{section}", use_container_width=True):
+                show_chart_details(section)
+        with insight_col:
+            if st.button("💡 Insight", key=f"quick_insight_{section}", use_container_width=True):
+                show_chart_insight(section)
+
 
 with overview_tab:
-    # Let users click a KPI card to see more details about those orders.
-    if "kpi_view" not in st.session_state:
-        st.session_state.kpi_view = "problems"
-    metrics = [
-        ("Total orders", f"{n_orders:,}", "all"),
-        ("Total order value", f"${order_value:,.2f}", "value"),
-        ("Shipped / delivered", f"{fulfilled_count:,}", "fulfilled"),
-        ("Cancelled / returned", f"{problem_rate:.1f}%", "problems"),
-    ]
-    cols = st.columns(4, gap="medium")
-    for col, (label, value, key) in zip(cols, metrics):
-        with col:
-            if st.button(f"{label}\n\n{value}   ↗", key=f"kpi_{key}", use_container_width=True):
-                st.session_state.kpi_view = key
-
-    with st.container(border=True):
-        view = st.session_state.kpi_view
-        if view == "fulfilled":
-            st.subheader("Fulfillment detail · shipped and delivered")
-            focus = filtered[filtered["shipped_delivered"]]
-            summary = focus.groupby(["product_name", "order_status"]).size().unstack(fill_value=0)
-            show_kpi_table(summary)
-            st.caption("Shipped means dispatched; it does not necessarily mean delivered.")
-        elif view == "problems":
-            st.subheader("Order problems · which products need attention?")
-            summary = filtered.groupby("product_name").agg(
-                orders=("order_id", "size"),
-                cancelled=("order_status", lambda s: (s == "Cancelled").sum()),
-                returned=("order_status", lambda s: (s == "Returned").sum()),
-            ).reset_index()
-            summary["problem_orders"] = summary["cancelled"] + summary["returned"]
-            summary["problem_rate"] = 100 * summary["problem_orders"] / summary["orders"]
-            summary = summary.sort_values("problem_rate", ascending=False)
-            left, right = st.columns([1.15, 1])
-            with left:
-                st.plotly_chart(bar_chart(summary, "product_name", "problem_rate", percent=True, horizontal=True), use_container_width=True)
-            with right:
-                show_kpi_table(summary, percent_columns=("problem_rate",))
-            st.caption("Compare rates, not only counts: a product with more orders can naturally have more returns.")
-            insight_button("products")
-        elif view == "value":
-            st.subheader("Order value by status")
-            value_table = filtered.groupby("order_status", as_index=False).agg(orders=("order_id", "size"), order_value=("totalprice", "sum"))
-            show_kpi_table(value_table, money_columns=("order_value",))
-            st.caption("Order value includes pending, cancelled and returned records; it is not verified revenue.")
-        else:
-            st.subheader("Order overview · products")
-            overview = filtered.groupby("product_name", as_index=False).agg(orders=("order_id", "size"), order_value=("totalprice", "sum"))
-            show_kpi_table(overview.sort_values("orders", ascending=False), money_columns=("order_value",))
-
-    # Show monthly orders and a doughnut chart of order statuses.
-    left, right = st.columns([1.4, 1], gap="medium")
-    with left:
-        st.subheader("Monthly order activity")
-        monthly = filtered.dropna(subset=["month_start"]).groupby("month_start").size().reset_index(name="orders")
-        # A translucent violet area with a smooth magenta-purple line.
-        fig = go.Figure(go.Scatter(
-            x=monthly["month_start"], y=monthly["orders"],
-            mode="lines+markers", fill="tozeroy", fillcolor="rgba(168,85,247,0.14)",
-            line=dict(color="#B87AFF", width=3, shape="spline", smoothing=0.55),
-            marker=dict(color="#EC4899", size=6, line=dict(color="#F3C1F3", width=1)),
-            hovertemplate="%{x|%b %Y}: %{y} orders<extra></extra>",
-            name="Orders",
-        ))
-        fig.update_layout(xaxis_title="", yaxis_title="Orders")
-        st.plotly_chart(finish_chart(fig), use_container_width=True)
-    with right:
-        st.subheader("Order status breakdown")
-        statuses = filtered["order_status"].value_counts().rename_axis("status").reset_index(name="orders")
-        fig = go.Figure(go.Pie(labels=statuses["status"], values=statuses["orders"], hole=.62,
-            marker=dict(colors=[STATUS_COLORS.get(s, BLUE) for s in statuses["status"]], line=dict(color=PANEL, width=2)),
-            textinfo="percent", textposition="inside",
-            hovertemplate="<b>%{label}</b><br>Orders: %{value:,}<br>Share: %{percent}<extra></extra>"))
-        fig.update_layout(showlegend=True, legend=dict(orientation="v", x=1.02, y=.5, xanchor="left", yanchor="middle", font=dict(color=TEXT, size=12)),
-            margin=dict(l=10, r=120, t=20, b=15))
-        st.plotly_chart(finish_chart(fig, 245, 120), use_container_width=True)
-
-    insight_button("monthly", "💡 Monthly Activity Insight")
-    insight_button("status", "💡 Order Status Insight")
-
-
-with marketing_tab:
-    # Compare referral sources by order count and cancellation/return rate.
-    st.subheader("Marketing channels · volume versus order quality")
-    channel = filtered.groupby("referralsource").agg(
-        orders=("order_id", "size"), problem_orders=("problem_order", "sum"),
-        shipped_delivered=("shipped_delivered", "sum"),
-    ).reset_index()
-    channel["problem_rate"] = 100 * channel["problem_orders"] / channel["orders"]
-    channel = channel.sort_values("orders", ascending=False)
-    left, right = st.columns(2, gap="medium")
-    with left:
-        st.markdown("**Orders by referral source**")
-        st.plotly_chart(bar_chart(channel, "referralsource", "orders"), use_container_width=True)
-    with right:
-        st.markdown("**Cancelled / returned rate by source**")
-        st.plotly_chart(bar_chart(channel.sort_values("problem_rate", ascending=False), "referralsource", "problem_rate", percent=True), use_container_width=True)
-    st.caption("These patterns identify where to investigate; they do not establish why a channel has more returns.")
-    insight_button("marketing")
-
-
-with cart_tab:
-    # Check whether orders with different cart sizes have different problem rates.
-    st.subheader("Shopping cart behaviour")
-    cart = filtered.dropna(subset=["itemsincart"]).groupby("itemsincart").agg(
-        orders=("order_id", "size"), problem_orders=("problem_order", "sum")
-    ).reset_index()
-    cart["problem_rate"] = 100 * cart["problem_orders"] / cart["orders"]
-    left, right = st.columns(2, gap="medium")
-    with left:
-        st.markdown("**Orders by cart size**")
-        # Label the bottom axis so it's clear these numbers are items, not orders.
-        cart_orders_fig = bar_chart(cart, "itemsincart", "orders")
-        cart_orders_fig.update_xaxes(title_text="Items in Cart", type="category")
-        st.plotly_chart(cart_orders_fig, use_container_width=True)
-    with right:
-        st.markdown("**Problem rate by cart size**")
-        # Use the same cart-size label on the cancellation and return chart.
-        cart_problem_fig = bar_chart(cart, "itemsincart", "problem_rate", percent=True)
-        cart_problem_fig.update_xaxes(title_text="Items in Cart", type="category")
-        st.plotly_chart(cart_problem_fig, use_container_width=True)
-    st.caption("Cart size describes recorded items in cart. Without cart events and checkout history, we cannot calculate cart abandonment or prove items were removed.")
-    insight_button("cart")
-
-
-with coupon_tab:
-    # Compare coupon codes to see whether some are linked to more problem orders.
-    st.subheader("Coupon performance")
-    st.caption("Compare orders with different coupon codes, including orders without a coupon.")
-    coupon_data = filtered.copy()
-    coupon_data["coupon_group"] = coupon_data["couponcode"].fillna("").astype(str).str.strip()
-    coupon_data["coupon_group"] = coupon_data["coupon_group"].replace("", "No coupon")
-    coupons = coupon_data.groupby("coupon_group", as_index=False).agg(
-        orders=("order_id", "size"),
-        problem_orders=("problem_order", "sum"),
-        average_order_value=("totalprice", "mean"),
+    st.markdown(
+        f'<div class="overview-headline"><strong>At a glance:</strong> '
+        f'{problem_count:,} of {n_orders:,} orders ({problem_rate:.1f}%) were cancelled or returned. '
+        'Select any KPI or chart to investigate.</div>', unsafe_allow_html=True,
     )
-    coupons["problem_rate"] = 100 * coupons["problem_orders"] / coupons["orders"]
-    coupons = coupons.sort_values("orders", ascending=False)
-    left, right = st.columns(2, gap="medium")
-    with left:
-        st.markdown("**Orders by coupon code**")
-        st.plotly_chart(bar_chart(coupons, "coupon_group", "orders"), use_container_width=True)
-    with right:
-        st.markdown("**Cancellation & return rate by coupon**")
-        st.plotly_chart(bar_chart(coupons.sort_values("problem_rate", ascending=False), "coupon_group", "problem_rate", percent=True), use_container_width=True)
-    st.caption("Coupon use is associated with these order outcomes, but this data cannot prove a coupon caused a sale or return.")
-    insight_button("coupons")
+    metrics = [
+        ("TOTAL ORDERS", f"{n_orders:,}", "Recorded customer orders", "all"),
+        ("TOTAL ORDER VALUE", f"${order_value / 1_000_000:.2f}M" if order_value >= 1_000_000 else f"${order_value:,.0f}", "Includes all order statuses", "value"),
+        ("SHIPPED / DELIVERED", f"{fulfilled_count:,}", f"{fulfilled_count / n_orders:.1%} of orders", "fulfilled"),
+        ("CANCELLED / RETURNED", f"{problem_rate:.1f}%", f"{problem_count:,} orders need attention", "problems"),
+    ]
+    for col, (label, value, detail, key) in zip(st.columns(4, gap="small"), metrics):
+        with col:
+            emphasis = " problem" if key == "problems" else ""
+            st.markdown(
+                f'<div class="kpi-face"><div class="kpi-label">{label}</div>'
+                f'<div class="kpi-number{emphasis}">{value}</div>'
+                f'<div class="kpi-detail">{detail}</div></div>', unsafe_allow_html=True,
+            )
+            if st.button("↗ View breakdown", key=f"kpi_{key}", use_container_width=True):
+                show_kpi_breakdown(key)
 
+    st.markdown('<div class="overview-section-title">PERFORMANCE AT A GLANCE <span>· Hover for values · Click for deeper analysis</span></div>', unsafe_allow_html=True)
+    row1 = st.columns(3, gap="small")
+    with row1[0]:
+        compact_chart("Product problem rates", "products", bar_chart(product, "product_name", "problem_rate", percent=True, horizontal=True, height=205), "Which products need attention?")
+    with row1[1]:
+        compact_chart("Monthly order activity", "monthly", monthly_figure(), "How does demand change over time?")
+    with row1[2]:
+        compact_chart("Order status breakdown", "status", status_figure(), "How many orders reach fulfillment?")
+    row2 = st.columns(3, gap="small")
+    with row2[0]:
+        compact_chart("Marketing referrals", "marketing", bar_chart(channel, "referralsource", "orders", height=205), "Which sources generate the most orders?")
+    with row2[1]:
+        f = bar_chart(cart, "itemsincart", "orders", height=205)
+        f.update_xaxes(title_text="Items in Cart", type="category")
+        compact_chart("Shopping cart sizes", "cart", f, "How many items are in each order's cart?")
+    with row2[2]:
+        compact_chart("Coupon usage", "coupons", bar_chart(coupons, "coupon_group", "orders", height=205), "Which coupon groups appear most often?")
 
 with orders_tab:
     # Keep the individual orders in a table users can open when needed.
