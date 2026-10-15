@@ -1,6 +1,38 @@
 """Find useful patterns in the orders using Python, without an AI API."""
 import pandas as pd
+from scipy.stats import chi2_contingency
 
+
+
+def association_note(data: pd.DataFrame, group_column: str) -> str:
+    """Explain the chi-square association test for the CURRENT filter selection.
+
+    Tests whether problem-order proportions vary by category; does not establish
+    causality or equivalence. Missing coupon codes are a 'No coupon' category.
+    """
+    if data.empty or group_column not in data.columns:
+        return "Not enough data to compare groups."
+
+    groups = data[group_column].astype("string").fillna("Missing").str.strip()
+    groups = groups.replace("", "Missing")
+    if group_column == "couponcode":
+        groups = groups.replace("Missing", "No coupon")
+    outcome = data["problem_order"].fillna(False).astype(bool)
+    contingency = pd.crosstab(groups, outcome)
+    if contingency.shape[0] < 2 or contingency.shape[1] < 2:
+        return "Not enough variation in the selected orders to compare group rates."
+
+    chi2, p_value, degrees, expected = chi2_contingency(contingency, correction=False)
+    if (expected < 5).any():
+        return ("Some groups are too small for a reliable chi-square approximation "
+                "(expected count below 5); treat these differences as descriptive only.")
+    if p_value < 0.05:
+        return (f"The selected data show a statistically detectable association "
+                f"between this grouping and order outcome (chi-square p = {p_value:.3f}). "
+                "This does not establish cause, and multiple comparisons warrant caution.")
+    return (f"Observed group differences are not statistically significant "
+            f"(chi-square p = {p_value:.3f}). The ranking is descriptive, "
+            "not evidence that one group is inherently worse or better.")
 
 def build_insights(data: pd.DataFrame) -> list[dict]:
     """Look at the selected orders and write simple business findings."""
@@ -117,4 +149,29 @@ def build_insights(data: pd.DataFrame) -> list[dict]:
             'action': 'Check the products and customers using this code; the dataset does not show whether the discount caused the outcome.',
         })
 
+    # Statistical context is recomputed on every filtered selection. Keep the
+    # descriptive counts/rankings, but do not overstate differences in rates.
+    related = {
+        "Most affected product": "product_name",
+        "Products responsible for the most problem orders": "product_name",
+        "Highest product problem rate": "product_name",
+        "Marketing channel quality": "referralsource",
+        "Cart-size pattern": "itemsincart",
+        "Do coupon orders have more problems?": "couponcode",
+        "Coupon code to review": "couponcode",
+    }
+    notes = {col: association_note(data, col) for col in set(related.values())}
+    for item in findings:
+        if item["title"] in related:
+            item["finding"] += " " + notes[related[item["title"]]]
+
+    pending_count = int(data["order_status"].eq("Pending").sum())
+    if pending_count:
+        findings.append({
+            "title": "Pending orders to verify",
+            "finding": (f"{pending_count:,} selected orders are marked Pending "
+                        f"({pending_count / n:.1%} of selected orders). "
+                        "The data does not establish whether these are overdue."),
+            "action": "Check when these statuses were last updated and confirm whether the orders are still open.",
+        })
     return findings

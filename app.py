@@ -7,7 +7,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
-from insights import build_insights
+from insights import build_insights, association_note
 
 # Set up the dashboard page and choose the main colours.
 st.set_page_config(page_title="E-Commerce Intelligence", page_icon="📈", layout="wide")
@@ -327,12 +327,16 @@ def show_chart_insight(section):
                 f"{name} has the highest cancellation and return rate at **{row['rate']:.1f}%**. "
                 f"Of {int(row['orders'])} orders, {int(row['cancelled'])} were cancelled "
                 f"and {int(row['returned'])} were returned.",
-                f"This means {int(row['problems'])} {name} orders did not result in a retained sale. "
-                "That makes this product worth reviewing, especially alongside products with more total problem orders.",
+                f"These {int(row['problems'])} {name} orders were cancelled or returned. "
+                "A returned order is not necessarily a permanently lost sale, and this ranking alone "
+                "does not establish that this product performs worse than the others.",
                 "Management should review cancellation and return records separately, focusing on "
                 "inventory availability, delivery performance, product descriptions, and supplier quality. "
                 "These are areas to investigate, not confirmed causes."
             )
+            st.markdown("**Statistical context**")
+            st.write(association_note(filtered, "product_name"))
+
     elif section == "monthly":
         t = filtered.dropna(subset=["month_start"]).groupby("month_start").size()
         if t.empty:
@@ -375,6 +379,9 @@ def show_chart_insight(section):
                 "Management should compare order volume, cancellation and return rates, and campaign costs "
                 "before changing marketing spending. Differences in products and customer groups also deserve review."
             )
+            st.markdown("**Statistical context**")
+            st.write(association_note(filtered, "referralsource"))
+
     elif section == "cart":
         t = filtered.dropna(subset=["itemsincart"]).groupby("itemsincart").agg(
             orders=("order_id", "size"), problems=("problem_order", "sum"))
@@ -389,11 +396,14 @@ def show_chart_insight(section):
                 f"**{int(t.loc[most, 'orders'])} orders**. Carts with **{highest:g} items** "
                 f"have the highest observed cancellation and return rate (**{t.loc[highest, 'rate']:.1f}%** "
                 f"across {int(t.loc[highest, 'orders'])} orders).",
-                "Some cart sizes have a higher share of problem orders than others. "
-                "Small groups can produce unusually high percentages, so the order counts matter too.",
+                "The observed rates vary by cart size, but a ranking alone does not establish "
+                "a meaningful association. Small groups can produce unstable percentages.",
                 "Management should compare cart-size groups with enough orders and review the "
                 "products and order outcomes within them. This dataset does not measure abandoned carts."
             )
+            st.markdown("**Statistical context**")
+            st.write(association_note(filtered, "itemsincart"))
+
     elif section == "coupons":
         t = filtered.copy()
         t["coupon_group"] = t["couponcode"].fillna("").astype(str).str.strip().replace("", "No coupon")
@@ -409,11 +419,13 @@ def show_chart_insight(section):
                 f"**{most}** is the most common coupon group, appearing in "
                 f"**{int(t.loc[most, 'orders'])} orders**. Its cancellation and return rate is "
                 f"**{t.loc[most, 'rate']:.1f}%**.{comparison}",
-                "Coupon groups differ in both order volume and the share of orders cancelled or returned. "
-                "A popular coupon does not automatically mean stronger sales performance.",
+                "Coupon groups have different observed counts and rates, but the ranking does not "
+                "establish a meaningful association. A popular coupon does not automatically mean stronger sales performance.",
                 "Management should compare coupon groups by order outcomes, discount costs, "
                 "and campaign timing before deciding which promotions to continue or adjust."
             )
+            st.markdown("**Statistical context**")
+            st.write(association_note(filtered, "couponcode"))
 
 
 def insight_button(section, label="💡 View Insight"):
