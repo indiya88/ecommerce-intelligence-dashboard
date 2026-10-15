@@ -1,0 +1,16 @@
+# Python virtual environment
+.venv/
+
+# Python temporary files
+__pycache__/
+*.pyc
+
+# Personal notes
+Summary.docx
+
+# Local editor settings
+.vscode/
+
+# Private configuration
+.env
+.streamlit/secrets.toml
