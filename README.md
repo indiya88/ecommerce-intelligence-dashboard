@@ -1,6 +1,6 @@
 # E-Commerce Intelligence Dashboard
 
-An interactive business intelligence dashboard built with **Python, Streamlit, Pandas, and Plotly** to explore e-commerce order activity, product performance, order outcomes, marketing channels, and customer shopping behaviour.
+An interactive business intelligence dashboard built with **Python, Streamlit, Pandas, Plotly, and SciPy** to explore e-commerce order activity, product performance, order outcomes, marketing channels, and customer shopping behaviour.
 
 The project focuses on making order data understandable and useful for business decision-making. In addition to interactive visualizations, it provides plain-language findings, business impacts, and recommendations based on the selected filters.
 
@@ -22,6 +22,9 @@ The project focuses on making order data understandable and useful for business 
 - Pandas — data processing and analysis
 - Plotly — interactive charts
 - Streamlit — dashboard interface and deployment
+- SciPy — chi-square tests to check whether cancellation and return percentages differ clearly between groups
+- Git/GitHub — version control and source-code hosting
+- Streamlit Community Cloud — live deployment
 
 ## Run locally
 
@@ -50,9 +53,14 @@ The dashboard expects the cleaned dataset in `data/cleaned_E-Commerce Orders.csv
 │   └── cleaned_E-Commerce Orders.csv
 ├── app.py
 ├── insights.py
+├── verify_statistics.py
 ├── requirements.txt
 └── README.md
 ```
+
+## Statistical checks
+
+The dashboard uses SciPy chi-square tests to check whether cancellation and return rates differ clearly across products, referral sources, cart sizes, and coupon groups. The results are recalculated when filters change. The `verify_statistics.py` script independently checks the full-data tests. These tests do not prove causes or that groups are identical.
 
 ## How to interpret the financial figures
 
@@ -65,3 +73,8 @@ This is a hands-on data analytics portfolio project demonstrating data preparati
 ## Live dashboard
 
 https://ecommerce-intelligence-dashboard-edrnwcrmk9f45w4u8sbn4e.streamlit.app/
+
+
+## Source code
+
+https://github.com/indiya88/ecommerce-intelligence-dashboard

@@ -7,7 +7,7 @@ from scipy.stats import chi2_contingency
 def association_note(data: pd.DataFrame, group_column: str) -> str:
     """Explain the chi-square association test for the CURRENT filter selection.
 
-    Tests whether problem-order proportions vary by category; does not establish
+    Tests whether cancelled-or-returned-order proportions vary by category; does not establish
     causality or equivalence. Missing coupon codes are a 'No coupon' category.
     """
     if data.empty or group_column not in data.columns:
@@ -15,21 +15,24 @@ def association_note(data: pd.DataFrame, group_column: str) -> str:
 
     groups = data[group_column].astype("string").fillna("Missing").str.strip()
     groups = groups.replace("", "Missing")
+    if group_column == "coupon_used":
+        groups = data[group_column].map({True: "Coupon used", False: "No coupon"}).astype("string")
     if group_column == "couponcode":
         groups = groups.replace("Missing", "No coupon")
     outcome = data["problem_order"].fillna(False).astype(bool)
     contingency = pd.crosstab(groups, outcome)
     if contingency.shape[0] < 2 or contingency.shape[1] < 2:
-        return "Not enough variation in the selected orders to compare group rates."
+        return ("Only one group is available, so there is nothing to compare."
+                if contingency.shape[0] < 2 else
+                "All selected orders have the same outcome, so there is nothing to compare.")
 
     chi2, p_value, degrees, expected = chi2_contingency(contingency, correction=False)
     if (expected < 5).any():
         return ("Some groups are too small for a reliable chi-square approximation "
                 "(expected count below 5); treat these differences as descriptive only.")
     if p_value < 0.05:
-        return (f"The selected data show a statistically detectable association "
-                f"between this grouping and order outcome (chi-square p = {p_value:.3f}). "
-                "This does not establish cause, and multiple comparisons warrant caution.")
+        return (f"The cancellation and return percentages differ more than we would usually expect "
+                f"from chance alone (p = {p_value:.3f}). This does not tell us why.")
     return (f"Observed group differences are not statistically significant "
             f"(chi-square p = {p_value:.3f}). The ranking is descriptive, "
             "not evidence that one group is inherently worse or better.")
@@ -49,7 +52,7 @@ def build_insights(data: pd.DataFrame) -> list[dict]:
         'action': 'Review the reasons for cancellations and returns before increasing acquisition spending.',
     })
 
-    # Compare products to see which ones have the most problem orders.
+    # Compare products to see which ones have the most cancelled or returned orders.
     products = data.groupby('product_name', dropna=True).agg(
         orders=('order_id', 'size'), problems=('problem_order', 'sum'),
         cancellations=('order_status', lambda x: x.eq('Cancelled').sum()),
@@ -66,13 +69,13 @@ def build_insights(data: pd.DataFrame) -> list[dict]:
         # Find the three products with the most cancellations and returns.
         leaders = products.sort_values(['problems', 'product_name'], ascending=[False, True]).head(3)
         details = '; '.join(
-            f"{r.product_name}: {int(r.problems)} problem orders ({int(r.cancellations)} cancelled, {int(r.returns)} returned; {r.rate:.1f}% of its orders)"
+            f"{r.product_name}: {int(r.problems)} cancelled or returned orders ({int(r.cancellations)} cancelled, {int(r.returns)} returned; {r.rate:.1f}% of its orders)"
             for r in leaders.itertuples()
         )
         findings.append({
-            'title': 'Products responsible for the most problem orders',
+            'title': 'Products responsible for the most cancelled or returned orders',
             'finding': details + '.',
-            'action': 'Prioritize products by both problem volume and problem rate; inspect the individual orders below.',
+            'action': 'Prioritize products by both problem volume and cancellation and return rate; inspect the individual orders below.',
         })
         # Ignore very small groups so their percentages are less misleading.
         minimum = max(10, int(n * .02))
@@ -80,8 +83,8 @@ def build_insights(data: pd.DataFrame) -> list[dict]:
         if len(eligible) > 1:
             worst = eligible.sort_values(['rate', 'orders'], ascending=[False, False]).iloc[0]
             findings.append({
-                'title': 'Highest product problem rate',
-                'finding': f"{worst['product_name']} has the highest problem rate among products with at least {minimum} orders: {worst['rate']:.1f}% ({int(worst['problems'])}/{int(worst['orders'])}).",
+                'title': 'Highest product cancellation and return rate',
+                'finding': f"{worst['product_name']} has the highest cancellation and return rate among products with at least {minimum} orders: {worst['rate']:.1f}% ({int(worst['problems'])}/{int(worst['orders'])}).",
                 'action': 'Compare product descriptions, quality issues, and fulfillment practices; the data does not identify the cause.',
             })
 
@@ -118,11 +121,11 @@ def build_insights(data: pd.DataFrame) -> list[dict]:
         high = eligible.sort_values('rate', ascending=False).iloc[0]
         findings.append({
             'title': 'Cart-size pattern',
-            'finding': f"Orders with {int(high['itemsincart'])} items in cart have the highest cancellation/return rate among sufficiently represented cart sizes ({high['rate']:.1f}%, {int(high['orders'])} orders).",
+            'finding': f"Orders with {int(high['itemsincart'])} {'item' if int(high['itemsincart']) == 1 else 'items'} in cart have the highest cancellation/return rate among sufficiently represented cart sizes ({high['rate']:.1f}%, {int(high['orders'])} orders).",
             'action': 'Explore whether cart size is associated with order problems; cart abandonment cannot be inferred.',
         })
 
-    # Compare orders with and without coupons, then find which code has the highest problem rate.
+    # Compare orders with and without coupons, then find which code has the highest cancellation and return rate.
     coupon_data = data.copy()
     coupon_data['coupon_group'] = coupon_data['couponcode'].fillna('').astype(str).str.strip().replace('', 'No coupon')
     coupon_summary = coupon_data.groupby('coupon_group').agg(
@@ -152,12 +155,10 @@ def build_insights(data: pd.DataFrame) -> list[dict]:
     # Statistical context is recomputed on every filtered selection. Keep the
     # descriptive counts/rankings, but do not overstate differences in rates.
     related = {
-        "Most affected product": "product_name",
-        "Products responsible for the most problem orders": "product_name",
-        "Highest product problem rate": "product_name",
+        "Highest product cancellation and return rate": "product_name",
         "Marketing channel quality": "referralsource",
         "Cart-size pattern": "itemsincart",
-        "Do coupon orders have more problems?": "couponcode",
+        "Do coupon orders have more problems?": "coupon_used",
         "Coupon code to review": "couponcode",
     }
     notes = {col: association_note(data, col) for col in set(related.values())}
