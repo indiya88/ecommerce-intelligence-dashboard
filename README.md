@@ -12,9 +12,11 @@ The project focuses on making order data understandable and useful for business 
 - **Marketing analysis:** Compare referral-source volume and order quality.
 - **Shopping-cart analysis:** Explore cart size and its relationship to order outcomes.
 - **Coupon analysis:** Compare coupon usage and order outcomes.
-- **Interactive insights:** Chart-specific insights and an executive summary that respond to dashboard filters.
+- **Key findings and chart insights:** A "Key findings" summary and an "Explore Insights" button on each chart explain what the data shows, why it matters, and what to do next. Both update with the filters.
 - **Drill-downs:** Click KPI cards to inspect supporting data.
 - **Filters:** Explore results by year, product, and referral source.
+- **Pending order check:** Flags how many orders are still marked Pending and how old the oldest one is.
+- **Order records and export:** Browse individual orders and download the cancelled or returned orders as a CSV.
 
 ## Technology
 
@@ -61,6 +63,10 @@ The dashboard expects the cleaned dataset in `data/cleaned_E-Commerce Orders.csv
 ## Statistical checks
 
 The dashboard uses SciPy chi-square tests to check whether cancellation and return rates differ clearly across products, referral sources, cart sizes, and coupon groups. The results are recalculated when filters change. The `verify_statistics.py` script independently checks the full-data tests. These tests do not prove causes or that groups are identical.
+
+## Key finding
+
+About 41% of orders were cancelled or returned. Chi-square tests found no meaningful difference across products, referral sources, cart sizes or coupons, which points to a business-wide issue rather than a problem with one product or channel.
 
 ## How to interpret the financial figures
 
