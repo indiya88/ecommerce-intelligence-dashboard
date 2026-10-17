@@ -170,8 +170,6 @@ div.stButton > button:hover {
 [data-testid="stVerticalBlockBorderWrapper"]:has(.compact-chart-title) [data-testid="stPlotlyChart"] {
     box-shadow:none!important;border:0!important;background:transparent!important;
 }
-.st-key-detail_products button,.st-key-detail_monthly button,.st-key-detail_status button,
-.st-key-detail_marketing button,.st-key-detail_cart button,.st-key-detail_coupons button,
 .st-key-quick_insight_products button,.st-key-quick_insight_monthly button,
 .st-key-quick_insight_status button,.st-key-quick_insight_marketing button,
 .st-key-quick_insight_cart button,.st-key-quick_insight_coupons button {
@@ -282,14 +280,14 @@ problem_rate = 100 * problem_count / n_orders
 
 # Show the business findings in a popup when the button is clicked.
 # The findings change whenever the user changes the filters.
-@st.dialog("Executive Insights", width="large")
+@st.dialog("Key Findings", width="large")
 def show_executive_insights():
-    st.caption("Business findings from your selected orders")
+    st.caption("Based on the orders you’ve selected. These are patterns in the data, not proof of what caused them.")
     for item in build_insights(filtered):
         with st.container(border=True):
             st.markdown(f"**{item['title']}**")
             st.write(item["finding"])
-            st.caption("Management follow-up: " + item["action"])
+            st.caption("Next step: " + item["action"])
 
     st.markdown("#### Which orders were cancelled or returned?")
     problem_records = filtered.loc[filtered["problem_order"], [
@@ -303,20 +301,26 @@ def show_executive_insights():
     st.download_button("Download cancelled or returned orders (CSV)", problem_records.to_csv(index=False),
         "cancelled_returned_orders.csv", "text/csv", key="download_problem_orders")
 
-if st.button("Explore Executive Insights · " + str(len(build_insights(filtered))) + " findings ↗", key="open_insights", type="primary", icon=":material/lightbulb_outline:"):
+if st.button("Key findings (" + str(len(build_insights(filtered))) + ")", key="open_insights", type="primary", icon=":material/lightbulb_outline:"):
     show_executive_insights()
 
 # Explain each chart in plain English, using the current filters.
 # Keep the finding separate from possible explanations and next steps.
-@st.dialog("Chart Insight", width="large")
+@st.dialog("Explore Insights", width="large")
 def show_chart_insight(section):
+    st.caption("Based on the orders you’ve selected. These patterns don’t tell us what caused them.")
+
     def explain(finding, impact, recommendation):
-        st.markdown("**What the chart shows**")
+        st.markdown("**What we see**")
         st.write(finding)
-        st.markdown("**What this means**")
+        st.markdown("**Why it matters**")
         st.write(impact)
-        st.markdown("**What management can do**")
+        st.markdown("**What to do next**")
         st.write(recommendation)
+
+    def statistical_check(group):
+        st.markdown("**Is this difference real?**")
+        st.write(association_note(filtered, group))
 
     if section == "products":
         t = filtered.groupby("product_name").agg(
@@ -328,19 +332,34 @@ def show_chart_insight(section):
         else:
             t["rate"] = 100 * t["problems"] / t["orders"]
             name, row = next(iter(t.sort_values("rate", ascending=False).iterrows()))
-            explain(
-                f"{name} has the highest cancellation and return rate at **{row['rate']:.1f}%**. "
-                f"Of {int(row['orders'])} orders, {int(row['cancelled'])} were cancelled "
-                f"and {int(row['returned'])} were returned.",
-                f"These {int(row['problems'])} {name} orders were cancelled or returned. "
-                "This percentage tells us how many orders were cancelled or returned, not whether the product "
-                "is defective. Having the highest percentage does not automatically mean this product is worse.",
-                "Management should review cancellation and return records separately, focusing on "
-                "inventory availability, delivery performance, product descriptions, and supplier quality. "
-                "These are areas to investigate, not confirmed causes."
+            impact = (
+                "Cancelled orders can mean missed sales. Returns may lead to refunds, "
+                "additional shipping costs, and extra work for staff. Because cancellations "
+                "and returns occur across the selected products, the business should look "
+                "for issues affecting more than one product, not just the one with the highest rate."
             )
-            st.markdown("**A quick check of the numbers**")
-            st.write(association_note(filtered, "product_name"))
+            if len(t) == 1:
+                impact = (
+                    "Cancellations can mean missed sales, while returns may create refund, "
+                    "shipping, and handling costs. Understanding why these orders did not "
+                    "result in retained sales can help the business reduce avoidable losses."
+                )
+            finding = (
+                f"**{name}** has a cancellation and return rate of **{row['rate']:.1f}%**: "
+                f"{int(row['cancelled'])} cancellations and {int(row['returned'])} returns "
+                f"out of {int(row['orders'])} orders."
+            )
+            if len(t) > 1:
+                finding = finding.replace("has a cancellation", "has the highest cancellation")
+            explain(
+                finding,
+                impact,
+                "Review why customers cancelled or returned their orders. Check stock "
+                "availability, delivery delays, product descriptions, and customer complaints. "
+                "Look for recurring issues across products so management can prioritize "
+                "improvements that benefit the business as a whole."
+            )
+            statistical_check("product_name")
 
     elif section == "monthly":
         t = filtered.dropna(subset=["month_start"]).groupby("month_start").size()
@@ -349,33 +368,30 @@ def show_chart_insight(section):
         else:
             high, low = t.idxmax(), t.idxmin()
             explain(
-                f"**{high:%B %Y}** had the most orders (**{int(t.max())}**), while "
-                f"**{low:%B %Y}** had the fewest (**{int(t.min())}**).",
-                "Order activity varies by month. Knowing when demand rises and falls can help "
-                "management plan staffing, inventory, and promotions.",
-                "Management should compare the busiest and slowest months with promotional calendars, "
-                "inventory levels, and seasonal demand. Partial months should be checked before drawing conclusions."
+                f"**{high:%B %Y}** was the busiest month with **{int(t.max())} orders**. "
+                f"**{low:%B %Y}** had the fewest with **{int(t.min())}**.",
+                "Changes in monthly order volume help the business plan staffing, inventory and promotions.",
+                "Compare the busiest and slowest months with promotions and holidays. "
+                "Make sure neither month is only partly recorded."
             )
-            st.markdown("**How to read these numbers**")
-            st.write("These are the actual monthly order counts in the selected data. "
-                     "No statistical test was run for this chart. A busy month does not, by itself, "
-                     "tell us why orders increased.")
+            st.markdown("**How to read this**")
+            st.write("These are the recorded order counts for each month. No statistical test was run for this chart.")
+
     elif section == "status":
         t = filtered["order_status"].value_counts()
         explain(
-            f"**{problem_count:,} of {n_orders:,} orders ({problem_rate:.1f}%)** were cancelled or returned. "
-            f"That includes **{int(t.get('Cancelled', 0)):,} cancellations** and "
-            f"**{int(t.get('Returned', 0)):,} returns**. Another **{fulfilled_count:,}** orders "
-            "were shipped or delivered.",
-            "A substantial share of orders is not ending in a retained sale. This can affect "
-            "sales performance and create additional operational work.",
-            "Management should review cancellation and return reasons separately and track whether "
-            "the cancellation and return rate improves over time. Order value is not confirmed revenue."
+            f"**{problem_count:,} of {n_orders:,} orders ({problem_rate:.1f}%)** were cancelled or returned: "
+            f"{int(t.get('Cancelled', 0)):,} cancellations and {int(t.get('Returned', 0)):,} returns. "
+            f"**{fulfilled_count:,}** orders were shipped or delivered.",
+            "Cancelled orders may mean missed sales, while returns can create extra work and costs. "
+            "The order status alone doesn’t tell us the financial impact.",
+            "Review why orders were cancelled or returned, then track this percentage each month "
+            "to see whether improvements are working."
         )
-        st.markdown("**How to read these numbers**")
-        st.write("These percentages show how the selected orders are divided among order statuses. "
-                 "No statistical test was run for this chart. Cancelled and returned orders "
-                 "are counted separately, then combined for the cancellation and return rate.")
+        st.markdown("**How to read this**")
+        st.write("This chart shows the number of orders in each status. 'Shipped' means dispatched, not necessarily delivered. "
+                 "No statistical test was needed to count these orders.")
+
     elif section == "marketing":
         t = filtered.groupby("referralsource").agg(orders=("order_id", "size"), problems=("problem_order", "sum"))
         if t.empty:
@@ -384,16 +400,28 @@ def show_chart_insight(section):
             t["rate"] = 100 * t["problems"] / t["orders"]
             volume_name = t["orders"].idxmax()
             best_name = t["rate"].idxmin()
+            if len(t) == 1:
+                impact = (f"**{volume_name}** is the only referral source in this selection. "
+                          "Its order count and cancellation and return rate are useful to track, "
+                          "but there are no other channels here to compare it with.")
+                action = "Select additional referral sources to compare performance, then review marketing costs."
+            elif volume_name == best_name:
+                impact = (f"**{volume_name}** brings in the most orders and has the smallest share cancelled or returned. "
+                          "It looks strongest on both measures, but check the note below to see whether "
+                          "the difference is large enough to be meaningful.")
+                action = (f"Review what is working with **{volume_name}** and compare marketing costs across channels "
+                          "before deciding whether to invest more.")
+            else:
+                impact = (f"**{volume_name}** leads in order volume, while **{best_name}** has the lowest "
+                          "cancellation and return rate. Both measures matter when judging channel performance.")
+                action = ("Compare each channel's order volume, cancellation and return rate, and marketing costs "
+                          "before changing the budget.")
             explain(
                 f"**{volume_name}** brings in the most orders (**{int(t.loc[volume_name, 'orders'])}**). "
                 f"**{best_name}** has the lowest cancellation and return rate (**{t.loc[best_name, 'rate']:.1f}%**).",
-                "A referral source can bring in many orders while also having cancellations and returns. "
-                "The figures alone do not prove one marketing source brings better customers.",
-                "Management should compare order volume, cancellation and return rates, and campaign costs "
-                "before changing marketing spending. Differences in products and customer groups also deserve review."
+                impact, action
             )
-            st.markdown("**A quick check of the numbers**")
-            st.write(association_note(filtered, "referralsource"))
+            statistical_check("referralsource")
 
     elif section == "cart":
         t = filtered.dropna(subset=["itemsincart"]).groupby("itemsincart").agg(
@@ -405,17 +433,17 @@ def show_chart_insight(section):
             most = t["orders"].idxmax()
             highest = t["rate"].idxmax()
             explain(
-                f"The most common cart size is **{most:g} {'item' if most == 1 else 'items'}**, appearing in "
-                f"**{int(t.loc[most, 'orders'])} orders**. Carts with **{highest:g} {'item' if highest == 1 else 'items'}** "
-                f"have the highest observed cancellation and return rate (**{t.loc[highest, 'rate']:.1f}%** "
-                f"across {int(t.loc[highest, 'orders'])} orders).",
-                "Some cart sizes have higher cancellation and return percentages than others, "
-                "but that does not necessarily mean cart size is the reason.",
-                "Management should compare cart-size groups with enough orders and review the "
-                "products and order outcomes within them. This dataset does not measure abandoned carts."
+                f"Most orders have **{most:g} {'item' if most == 1 else 'items'}** in the cart "
+                f"(**{int(t.loc[most, 'orders'])} orders**). Carts with "
+                f"**{highest:g} {'item' if highest == 1 else 'items'}** have the highest "
+                f"cancellation and return rate (**{t.loc[highest, 'rate']:.1f}%**).",
+                "Cart size helps the business understand typical order sizes and plan packaging, stock and shipping. "
+                "Looking at cancellations and returns by cart size can also show which orders may need more attention.",
+                "Review the products in cart-size groups with higher cancellation and return rates, "
+                "especially groups with enough orders to compare reliably. Check for common product or delivery issues. "
+                "This data includes placed orders, not abandoned carts."
             )
-            st.markdown("**A quick check of the numbers**")
-            st.write(association_note(filtered, "itemsincart"))
+            statistical_check("itemsincart")
 
     elif section == "coupons":
         t = filtered.copy()
@@ -426,24 +454,36 @@ def show_chart_insight(section):
         else:
             t["rate"] = 100 * t["problems"] / t["orders"]
             most = t["orders"].idxmax()
-            comparison = (f" Orders without a coupon have a **{t.loc['No coupon', 'rate']:.1f}%** "
-                          "cancellation and return rate." if "No coupon" in t.index else "")
+            comparison = (f" Orders without a coupon had a **{t.loc['No coupon', 'rate']:.1f}%** rate."
+                          if "No coupon" in t.index else "")
             explain(
-                f"**{most}** is the most common coupon group, appearing in "
-                f"**{int(t.loc[most, 'orders'])} orders**. Its cancellation and return rate is "
-                f"**{t.loc[most, 'rate']:.1f}%**.{comparison}",
-                "Some coupons appear more often than others, but a popular coupon does not necessarily "
-                "lead to more successful orders. These figures do not show that coupons cause cancellations or returns.",
-                "Management should compare coupon groups by order outcomes, discount costs, "
-                "and campaign timing before deciding which promotions to continue or adjust."
+                f"**{most}** appears most often (**{int(t.loc[most, 'orders'])} orders**) "
+                f"and has a **{t.loc[most, 'rate']:.1f}%** cancellation and return rate.{comparison}",
+                "A frequently used coupon is not necessarily the most valuable promotion. "
+                "The business needs to consider how many coupon orders are kept and how much the discount or free shipping costs.",
+                "Compare each coupon's cancelled and returned orders with orders that used no coupon. "
+                "If available, add return reasons and promotion costs to identify which offers deliver the most value. "
+                "This dataset records coupon codes and order outcomes, but not why orders were cancelled or returned."
             )
-            st.markdown("**A quick check of the numbers**")
-            st.write(association_note(filtered, "couponcode"))
+            statistical_check("couponcode")
 
 
-def insight_button(section, label="View Insight"):
-    if st.button(label, key=f"insight_{section}", type="secondary", icon=":material/lightbulb_outline:"):
-        show_chart_insight(section)
+    # Keep the evidence available without showing the same chart twice.
+    with st.expander("View supporting data"):
+        if section == "products":
+            show_kpi_table(product, percent_columns=("problem_rate",))
+        elif section == "monthly":
+            show_kpi_table(monthly)
+        elif section == "status":
+            show_kpi_table(statuses)
+            st.caption("Shipped means dispatched, not necessarily delivered.")
+        elif section == "marketing":
+            show_kpi_table(channel, percent_columns=("problem_rate",))
+        elif section == "cart":
+            show_kpi_table(cart, percent_columns=("problem_rate",))
+        elif section == "coupons":
+            show_kpi_table(coupons, money_columns=("average_order_value",), percent_columns=("problem_rate",))
+
 
 # Center the small KPI detail tables so the numbers sit beneath their headings.
 # These are short summaries, so a simple styled table is easier to read than a wide spreadsheet.
@@ -520,55 +560,6 @@ def status_figure(height=205):
     return finish_chart(fig, height, 95)
 
 
-@st.dialog("Explore chart details", width="large")
-def show_chart_details(section):
-    if section == "products":
-        st.subheader("Product cancellation & return rates")
-        st.plotly_chart(bar_chart(product, "product_name", "problem_rate", percent=True, horizontal=True, height=320), use_container_width=True)
-        show_kpi_table(product, percent_columns=("problem_rate",))
-        st.caption("Rates account for differences in product order volume.")
-    elif section == "monthly":
-        st.subheader("Monthly order activity")
-        st.plotly_chart(monthly_figure(350), use_container_width=True)
-        show_kpi_table(monthly)
-    elif section == "status":
-        st.subheader("Order outcomes")
-        st.plotly_chart(status_figure(330), use_container_width=True)
-        show_kpi_table(statuses)
-        st.caption("Shipped means dispatched, not necessarily delivered.")
-    elif section == "marketing":
-        st.subheader("Referral sources: volume and quality")
-        l, r = st.columns(2)
-        with l:
-            st.plotly_chart(bar_chart(channel, "referralsource", "orders", height=300), use_container_width=True)
-        with r:
-            st.plotly_chart(bar_chart(channel, "referralsource", "problem_rate", percent=True, height=300), use_container_width=True)
-        show_kpi_table(channel, percent_columns=("problem_rate",))
-        st.caption("These percentages do not explain why orders were cancelled or returned.")
-    elif section == "cart":
-        st.subheader("Cart size and order outcomes")
-        l, r = st.columns(2)
-        with l:
-            f = bar_chart(cart, "itemsincart", "orders", height=300)
-            f.update_xaxes(title_text="Items in Cart", type="category")
-            st.plotly_chart(f, use_container_width=True)
-        with r:
-            f = bar_chart(cart, "itemsincart", "problem_rate", percent=True, height=300)
-            f.update_xaxes(title_text="Items in Cart", type="category")
-            st.plotly_chart(f, use_container_width=True)
-        show_kpi_table(cart, percent_columns=("problem_rate",))
-        st.caption("This dataset cannot measure cart abandonment; it records completed order rows, not cart events.")
-    elif section == "coupons":
-        st.subheader("Coupon groups: volume and outcomes")
-        l, r = st.columns(2)
-        with l:
-            st.plotly_chart(bar_chart(coupons, "coupon_group", "orders", height=300), use_container_width=True)
-        with r:
-            st.plotly_chart(bar_chart(coupons, "coupon_group", "problem_rate", percent=True, height=300), use_container_width=True)
-        show_kpi_table(coupons, money_columns=("average_order_value",), percent_columns=("problem_rate",))
-        st.caption("Coupon usage does not prove a promotion caused an order or return.")
-
-
 @st.dialog("KPI breakdown", width="large")
 def show_kpi_breakdown(view):
     if view == "fulfilled":
@@ -597,18 +588,14 @@ def show_chart_details_content_products():
 
 
 def compact_chart(title, section, figure, note):
-    # Plotly tooltips remain interactive. The buttons reveal deeper charts or insights.
+    # Plotly tooltips remain interactive. One button opens insights and supporting data.
     with st.container(border=True):
         st.markdown(f'<div class="compact-chart-title">{title}</div>', unsafe_allow_html=True)
         st.plotly_chart(figure, use_container_width=True, config={"displayModeBar": False}, key=f"overview_plot_{section}")
         st.markdown(f'<div class="compact-chart-note">{note}</div>', unsafe_allow_html=True)
-        detail_col, insight_col = st.columns(2, gap="small")
-        with detail_col:
-            if st.button("↗ Details", key=f"detail_{section}", use_container_width=True):
-                show_chart_details(section)
-        with insight_col:
-            if st.button("Insight", key=f"quick_insight_{section}", use_container_width=True, icon=":material/lightbulb_outline:"):
-                show_chart_insight(section)
+        if st.button("Explore Insights", key=f"quick_insight_{section}",
+                     use_container_width=True, icon=":material/lightbulb_outline:"):
+            show_chart_insight(section)
 
 
 with overview_tab:

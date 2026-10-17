@@ -5,174 +5,164 @@ from scipy.stats import chi2_contingency
 
 
 def association_note(data: pd.DataFrame, group_column: str) -> str:
-    """Explain the chi-square association test for the CURRENT filter selection.
-
-    Tests whether cancelled-or-returned-order proportions vary by category; does not establish
-    causality or equivalence. Missing coupon codes are a 'No coupon' category.
-    """
+    """Explain a chi-square comparison using only the current selection."""
     if data.empty or group_column not in data.columns:
-        return "Not enough data to compare groups."
-
-    groups = data[group_column].astype("string").fillna("Missing").str.strip()
-    groups = groups.replace("", "Missing")
+        return "There aren't enough orders to make this comparison. Try widening your filters."
     if group_column == "coupon_used":
         groups = data[group_column].map({True: "Coupon used", False: "No coupon"}).astype("string")
-    if group_column == "couponcode":
-        groups = groups.replace("Missing", "No coupon")
+    else:
+        groups = data[group_column].astype("string").fillna("Missing").str.strip().replace("", "Missing")
+        if group_column == "couponcode":
+            groups = groups.replace("Missing", "No coupon")
     outcome = data["problem_order"].fillna(False).astype(bool)
     contingency = pd.crosstab(groups, outcome)
-    if contingency.shape[0] < 2 or contingency.shape[1] < 2:
-        return ("Only one group is available, so there is nothing to compare."
-                if contingency.shape[0] < 2 else
-                "All selected orders have the same outcome, so there is nothing to compare.")
-
-    chi2, p_value, degrees, expected = chi2_contingency(contingency, correction=False)
+    if contingency.shape[0] < 2:
+        return "Only one group is selected, so there's nothing to compare."
+    if contingency.shape[1] < 2:
+        return "Every selected order has the same outcome, so there's nothing to compare."
+    _, p_value, _, expected = chi2_contingency(contingency, correction=False)
     if (expected < 5).any():
-        return ("Some groups are too small for a reliable chi-square approximation "
-                "(expected count below 5); treat these differences as descriptive only.")
+        return "There aren't enough orders in some groups to test this reliably. Try widening your filters."
     if p_value < 0.05:
-        return (f"The cancellation and return percentages differ more than we would usually expect "
-                f"from chance alone (p = {p_value:.3f}). This does not tell us why.")
-    return (f"Observed group differences are not statistically significant "
-            f"(chi-square p = {p_value:.3f}). The ranking is descriptive, "
-            "not evidence that one group is inherently worse or better.")
+        return (f"The differences are larger than we'd usually expect by chance (p = {p_value:.3f}). "
+                "It's worth looking more closely, but this doesn't tell us why they differ.")
+    return (f"The differences could easily occur by chance (p = {p_value:.3f}). "
+            "We don't have enough evidence to say these groups have different cancellation and return rates.")
+
 
 def build_insights(data: pd.DataFrame) -> list[dict]:
-    """Look at the selected orders and write simple business findings."""
+    """Generate business-focused findings for the current dashboard filters."""
     if data.empty:
         return []
-    # Start a list to hold the findings we want to show.
     findings = []
     n = len(data)
-    problem_n = int(data['problem_order'].sum())
-    rate = problem_n / n * 100
+    cancelled = int(data["order_status"].eq("Cancelled").sum())
+    returned = int(data["order_status"].eq("Returned").sum())
+    problem_n = int(data["problem_order"].sum())
+    rate = 100 * problem_n / n
+    approximate = f" That's about {round(rate / 10):d} in every 10 orders." if 35 <= rate <= 45 else ""
     findings.append({
-        'title': 'Order quality',
-        'finding': f'{problem_n:,} of {n:,} orders ({rate:.1f}%) are cancelled or returned. Of those, {int(data["order_status"].eq("Cancelled").sum()):,} were cancelled and {int(data["order_status"].eq("Returned").sum()):,} were returned.',
-        'action': 'Review the reasons for cancellations and returns before increasing acquisition spending.',
+        "title": "Cancellation and return overview",
+        "finding": (f"{problem_n:,} of {n:,} orders ({rate:.1f}%) were cancelled or returned: "
+                    f"{cancelled:,} cancellations and {returned:,} returns.{approximate}"),
+        "action": "Find out why customers are cancelling or returning orders before spending more to attract new ones.",
     })
 
-    # Compare products to see which ones have the most cancelled or returned orders.
-    products = data.groupby('product_name', dropna=True).agg(
-        orders=('order_id', 'size'), problems=('problem_order', 'sum'),
-        cancellations=('order_status', lambda x: x.eq('Cancelled').sum()),
-        returns=('order_status', lambda x: x.eq('Returned').sum()),
+    products = data.groupby("product_name", dropna=True).agg(
+        orders=("order_id", "size"), problems=("problem_order", "sum")
     ).reset_index()
-    products['rate'] = products['problems'] / products['orders'] * 100
     if not products.empty:
-        highest_count = products.sort_values(['problems', 'product_name'], ascending=[False, True]).iloc[0]
+        products["rate"] = 100 * products["problems"] / products["orders"]
+        leaders = products.sort_values(["problems", "product_name"], ascending=[False, True]).head(3)
+        names = [f"{r.product_name} ({int(r.problems)})" for r in leaders.itertuples()]
+        if len(names) == 1:
+            finding = (f"All {int(leaders.iloc[0]['problems'])} cancelled or returned orders "
+                       f"in this selection are for {leaders.iloc[0]['product_name']}.")
+        else:
+            first = leaders.iloc[0]
+            rest = " and ".join(names[1:])
+            finding = (f"{first['product_name']} has the most cancelled or returned orders "
+                       f"({int(first['problems'])}), followed by {rest}.")
         findings.append({
-            'title': 'Most affected product',
-            'finding': f"{highest_count['product_name']} has the most cancelled/returned orders ({int(highest_count['problems']):,} out of {int(highest_count['orders']):,}; {highest_count['rate']:.1f}%).",
-            'action': 'Check product-specific cancellation and return reasons; count alone may reflect higher sales volume.',
+            "title": "Products with the most cancellations and returns",
+            "finding": finding,
+            "action": "Review the individual orders for these products and look for recurring issues.",
         })
-        # Find the three products with the most cancellations and returns.
-        leaders = products.sort_values(['problems', 'product_name'], ascending=[False, True]).head(3)
-        details = '; '.join(
-            f"{r.product_name}: {int(r.problems)} cancelled or returned orders ({int(r.cancellations)} cancelled, {int(r.returns)} returned; {r.rate:.1f}% of its orders)"
-            for r in leaders.itertuples()
-        )
-        findings.append({
-            'title': 'Products responsible for the most cancelled or returned orders',
-            'finding': details + '.',
-            'action': 'Prioritize products by both problem volume and cancellation and return rate; inspect the individual orders below.',
-        })
-        # Ignore very small groups so their percentages are less misleading.
         minimum = max(10, int(n * .02))
-        eligible = products[products['orders'] >= minimum]
+        eligible = products[products["orders"] >= minimum]
         if len(eligible) > 1:
-            worst = eligible.sort_values(['rate', 'orders'], ascending=[False, False]).iloc[0]
+            highest = eligible.sort_values(["rate", "orders"], ascending=[False, False]).iloc[0]
+            finding = (f"{highest['product_name']} has the highest cancellation and return rate at "
+                       f"{highest['rate']:.1f}% ({int(highest['problems'])} of {int(highest['orders'])} orders).")
+            if len(eligible) > 1:
+                finding += " " + association_note(data, "product_name")
             findings.append({
-                'title': 'Highest product cancellation and return rate',
-                'finding': f"{worst['product_name']} has the highest cancellation and return rate among products with at least {minimum} orders: {worst['rate']:.1f}% ({int(worst['problems'])}/{int(worst['orders'])}).",
-                'action': 'Compare product descriptions, quality issues, and fulfillment practices; the data does not identify the cause.',
+                "title": "Highest cancellation and return rate",
+                "finding": finding,
+                "action": "Compare cancellation and return reasons, product descriptions and delivery times across products.",
             })
 
-    # Check which referral sources bring orders and how often they have problems.
-    channels = data.groupby('referralsource', dropna=True).agg(
-        orders=('order_id', 'size'), problems=('problem_order', 'sum')
+    channels = data.groupby("referralsource", dropna=True).agg(
+        orders=("order_id", "size"), problems=("problem_order", "sum")
     ).reset_index()
     if not channels.empty:
-        leader = channels.sort_values('orders', ascending=False).iloc[0]
+        leader = channels.sort_values("orders", ascending=False).iloc[0]
         findings.append({
-            'title': 'Top acquisition source',
-            'finding': f"{leader['referralsource']} generates the most orders ({int(leader['orders']):,}, {leader['orders'] / n * 100:.1f}% of the selection).",
-            'action': 'Compare channel quality as well as volume before deciding where to invest marketing budget.',
+            "title": "Where most orders come from",
+            "finding": (f"{leader['referralsource']} brings in the most orders: "
+                        f"{int(leader['orders']):,}, or {leader['orders'] / n * 100:.1f}% of the selected orders."),
+            "action": "Consider cancellation and return rates alongside order volume before changing marketing spending.",
         })
         minimum = max(10, int(n * .02))
-        eligible = channels[channels['orders'] >= minimum].copy()
+        eligible = channels[channels["orders"] >= minimum].copy()
         if len(eligible) > 1:
-            eligible['rate'] = eligible['problems'] / eligible['orders'] * 100
-            best = eligible.sort_values('rate').iloc[0]
-            worst = eligible.sort_values('rate', ascending=False).iloc[0]
+            eligible["rate"] = 100 * eligible["problems"] / eligible["orders"]
+            best = eligible.sort_values("rate").iloc[0]
+            worst = eligible.sort_values("rate", ascending=False).iloc[0]
             findings.append({
-                'title': 'Marketing channel quality',
-                'finding': f"{best['referralsource']} has the lowest cancellation/return rate ({best['rate']:.1f}%), versus {worst['referralsource']} at {worst['rate']:.1f}% (minimum {minimum} orders per channel).",
-                'action': 'Investigate product mix and promotional differences before attributing the gap to the referral source.',
+                "title": "Which channel has the fewest cancellations and returns",
+                "finding": (f"{best['referralsource']} has the lowest cancellation and return rate "
+                            f"({best['rate']:.1f}%). {worst['referralsource']} has the highest "
+                            f"({worst['rate']:.1f}%). " + association_note(data, "referralsource")),
+                "action": "Before reallocating the marketing budget, check whether the channels are selling different products.",
             })
 
-    # Compare cart sizes to see whether some have more order problems.
-    carts = data.dropna(subset=['itemsincart']).groupby('itemsincart').agg(
-        orders=('order_id', 'size'), problems=('problem_order', 'sum')
+    carts = data.dropna(subset=["itemsincart"]).groupby("itemsincart").agg(
+        orders=("order_id", "size"), problems=("problem_order", "sum")
     ).reset_index()
-    eligible = carts[carts['orders'] >= max(10, int(n * .02))].copy()
-    if len(eligible) > 1:
-        eligible['rate'] = eligible['problems'] / eligible['orders'] * 100
-        high = eligible.sort_values('rate', ascending=False).iloc[0]
-        findings.append({
-            'title': 'Cart-size pattern',
-            'finding': f"Orders with {int(high['itemsincart'])} {'item' if int(high['itemsincart']) == 1 else 'items'} in cart have the highest cancellation/return rate among sufficiently represented cart sizes ({high['rate']:.1f}%, {int(high['orders'])} orders).",
-            'action': 'Explore whether cart size is associated with order problems; cart abandonment cannot be inferred.',
-        })
-
-    # Compare orders with and without coupons, then find which code has the highest cancellation and return rate.
-    coupon_data = data.copy()
-    coupon_data['coupon_group'] = coupon_data['couponcode'].fillna('').astype(str).str.strip().replace('', 'No coupon')
-    coupon_summary = coupon_data.groupby('coupon_group').agg(
-        orders=('order_id', 'size'), problems=('problem_order', 'sum')
-    ).reset_index()
-    coupon_summary['rate'] = 100 * coupon_summary['problems'] / coupon_summary['orders']
-    with_coupon = coupon_data['coupon_group'].ne('No coupon')
-    if with_coupon.any() and (~with_coupon).any():
-        coupon_rate = 100 * coupon_data.loc[with_coupon, 'problem_order'].mean()
-        no_coupon_rate = 100 * coupon_data.loc[~with_coupon, 'problem_order'].mean()
-        findings.append({
-            'title': 'Do coupon orders have more problems?',
-            'finding': f"Orders with a coupon have a {coupon_rate:.1f}% cancellation/return rate, compared with {no_coupon_rate:.1f}% for orders without one.",
-            'action': 'Compare the types of products bought with coupons before deciding whether promotions affect order quality.',
-        })
-    coupon_codes = coupon_summary[coupon_summary['coupon_group'] != 'No coupon']
     minimum = max(10, int(n * .02))
-    eligible_codes = coupon_codes[coupon_codes['orders'] >= minimum]
-    if not eligible_codes.empty:
-        highest = eligible_codes.sort_values(['rate', 'orders'], ascending=[False, False]).iloc[0]
+    eligible = carts[carts["orders"] >= minimum].copy()
+    if not eligible.empty:
+        eligible["rate"] = 100 * eligible["problems"] / eligible["orders"]
+        highest = eligible.sort_values("rate", ascending=False).iloc[0]
+        size = int(highest["itemsincart"])
         findings.append({
-            'title': 'Coupon code to review',
-            'finding': f"{highest['coupon_group']} has the highest cancellation/return rate among coupon codes with at least {minimum} orders: {highest['rate']:.1f}% ({int(highest['problems'])} of {int(highest['orders'])} orders).",
-            'action': 'Check the products and customers using this code; the dataset does not show whether the discount caused the outcome.',
+            "title": "Cart size",
+            "finding": (f"Orders with {size} {'item' if size == 1 else 'items'} in the cart have the "
+                        f"highest cancellation and return rate among cart sizes with at least {minimum} orders "
+                        f"({highest['rate']:.1f}%, across {int(highest['orders'])} orders). "
+                        + (association_note(data, "itemsincart") if len(eligible) > 1 else "")),
+            "action": "Review the products in these carts. This data doesn't include abandoned carts.",
         })
 
-    # Statistical context is recomputed on every filtered selection. Keep the
-    # descriptive counts/rankings, but do not overstate differences in rates.
-    related = {
-        "Highest product cancellation and return rate": "product_name",
-        "Marketing channel quality": "referralsource",
-        "Cart-size pattern": "itemsincart",
-        "Do coupon orders have more problems?": "coupon_used",
-        "Coupon code to review": "couponcode",
-    }
-    notes = {col: association_note(data, col) for col in set(related.values())}
-    for item in findings:
-        if item["title"] in related:
-            item["finding"] += " " + notes[related[item["title"]]]
-
-    pending_count = int(data["order_status"].eq("Pending").sum())
-    if pending_count:
+    coupon_data = data.copy()
+    coupon_data["coupon_group"] = coupon_data["couponcode"].fillna("").astype(str).str.strip().replace("", "No coupon")
+    coupon_summary = coupon_data.groupby("coupon_group").agg(
+        orders=("order_id", "size"), problems=("problem_order", "sum")
+    ).reset_index()
+    coupon_summary["rate"] = 100 * coupon_summary["problems"] / coupon_summary["orders"]
+    with_coupon = coupon_data["coupon_group"].ne("No coupon")
+    if with_coupon.any() and (~with_coupon).any():
+        coupon_rate = 100 * coupon_data.loc[with_coupon, "problem_order"].mean()
+        no_coupon_rate = 100 * coupon_data.loc[~with_coupon, "problem_order"].mean()
         findings.append({
-            "title": "Pending orders to verify",
-            "finding": (f"{pending_count:,} selected orders are marked Pending "
-                        f"({pending_count / n:.1%} of selected orders). "
-                        "The data does not establish whether these are overdue."),
-            "action": "Check when these statuses were last updated and confirm whether the orders are still open.",
+            "title": "Do coupons make a difference?",
+            "finding": (f"Orders with a coupon were cancelled or returned {coupon_rate:.1f}% of the time, "
+                        f"compared with {no_coupon_rate:.1f}% without one. "
+                        + association_note(data, "coupon_used")),
+            "action": "Check whether coupon orders include different products before changing promotions.",
+        })
+    eligible_codes = coupon_summary[
+        (coupon_summary["coupon_group"] != "No coupon") & (coupon_summary["orders"] >= minimum)
+    ]
+    if not eligible_codes.empty:
+        highest = eligible_codes.sort_values(["rate", "orders"], ascending=[False, False]).iloc[0]
+        findings.append({
+            "title": "Coupon code with the highest rate",
+            "finding": (f"{highest['coupon_group']} has the highest cancellation and return rate among coupon codes "
+                        f"with at least {minimum} orders: {highest['rate']:.1f}% "
+                        f"({int(highest['problems'])} of {int(highest['orders'])} orders)."),
+            "action": "Look at which products and customers are using this code.",
+        })
+
+    pending = data.loc[data["order_status"].eq("Pending")]
+    if not pending.empty:
+        oldest = pd.to_datetime(pending["date"], errors="coerce").min()
+        date_note = f" The earliest pending order is from {oldest:%B} {oldest.day}, {oldest:%Y}." if pd.notna(oldest) else ""
+        findings.append({
+            "title": "Pending orders to check",
+            "finding": (f"{len(pending):,} orders ({len(pending) / n:.1%}) are marked Pending."
+                        + date_note),
+            "action": "Confirm whether these orders are still open or whether their statuses need updating.",
         })
     return findings
